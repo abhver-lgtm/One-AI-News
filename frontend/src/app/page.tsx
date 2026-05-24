@@ -6,15 +6,13 @@ import Sidebar from '@/components/Sidebar';
 import NewsGrid from '@/components/NewsGrid';
 import RefreshModal from '@/components/RefreshModal';
 import {
-  fetchNews,
-  fetchVideos,
+  fetchFeed,
   fetchSources,
   refreshNews,
   analyzeNews,
   createProgressStream,
   fetchProgress,
-  Article,
-  Video,
+  FeedItem,
   SourceInfo,
   ProgressState,
 } from '@/lib/api';
@@ -22,12 +20,10 @@ import {
 const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
 
 export default function Home() {
-  const [articles, setArticles] = useState<Article[]>([]);
-  const [videos, setVideos] = useState<Video[]>([]);
+  const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [sources, setSources] = useState<SourceInfo[]>([]);
   const [selectedSource, setSelectedSource] = useState<string | null>(null);
-  const [isLoadingArticles, setIsLoadingArticles] = useState(true);
-  const [isLoadingVideos, setIsLoadingVideos] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [totalArticles, setTotalArticles] = useState(0);
@@ -46,38 +42,22 @@ export default function Home() {
     toastTimerRef.current = setTimeout(() => setToast(null), 4000);
   }, []);
 
-  const loadArticles = useCallback(async () => {
-    setIsLoadingArticles(true);
+  const loadFeed = useCallback(async () => {
+    setIsLoading(true);
     try {
-      const [newsData, sourcesData] = await Promise.all([
-        fetchNews(selectedSource || undefined, sortBy),
+      const [feedData, sourcesData] = await Promise.all([
+        fetchFeed(selectedSource || undefined, sortBy),
         fetchSources(),
       ]);
-      setArticles(newsData);
+      setFeedItems(feedData);
       setSources(sourcesData);
       setTotalArticles(sourcesData.reduce((sum, s) => sum + s.article_count, 0));
     } catch (err) {
-      console.error('Error loading articles:', err);
+      console.error('Error loading feed:', err);
     } finally {
-      setIsLoadingArticles(false);
+      setIsLoading(false);
     }
   }, [selectedSource, sortBy]);
-
-  const loadVideos = useCallback(async () => {
-    setIsLoadingVideos(true);
-    try {
-      const videoData = await fetchVideos();
-      setVideos(videoData);
-    } catch (err) {
-      console.error('Error loading videos:', err);
-    } finally {
-      setIsLoadingVideos(false);
-    }
-  }, []);
-
-  const loadAllData = useCallback(async () => {
-    await Promise.all([loadArticles(), loadVideos()]);
-  }, [loadArticles, loadVideos]);
 
   const clearProgressPolling = useCallback(() => {
     if (pollIntervalRef.current) {
@@ -99,7 +79,7 @@ export default function Home() {
         setProgress(state);
         if (state.status === 'done') {
           clearProgressPolling();
-          loadAllData();
+          loadFeed();
           if (taskType === 'analyze' && state.analyze_done > 0) {
             showToast(`AI ranking complete! ${state.analyze_done} articles scored.`, 'success');
           } else if (taskType === 'refresh') {
@@ -118,7 +98,7 @@ export default function Home() {
               setProgress(state);
               if (state.status === 'done') {
                 clearProgressPolling();
-                loadAllData();
+                loadFeed();
                 if (taskType === 'analyze' && state.analyze_done > 0) {
                   showToast(`AI ranking complete! ${state.analyze_done} articles scored.`, 'success');
                 } else if (taskType === 'refresh') {
@@ -134,7 +114,7 @@ export default function Home() {
         }
       }
     );
-  }, [clearProgressPolling, loadAllData, showToast]);
+  }, [clearProgressPolling, loadFeed, showToast]);
 
   const handleRefresh = useCallback(async () => {
     if (isRefreshing) return;
@@ -175,14 +155,14 @@ export default function Home() {
   }, [isAnalyzing, startProgressPolling, showToast]);
 
   useEffect(() => {
-    loadAllData();
-  }, [loadAllData]);
+    loadFeed();
+  }, [loadFeed]);
 
   useEffect(() => {
     if (autoRefreshRef.current) clearInterval(autoRefreshRef.current);
     autoRefreshRef.current = setInterval(() => {
       if (document.visibilityState === 'visible') {
-        loadAllData();
+        loadFeed();
       }
     }, REFRESH_INTERVAL_MS);
     return () => {
@@ -190,10 +170,7 @@ export default function Home() {
       clearProgressPolling();
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
-  }, [loadAllData, clearProgressPolling]);
-
-  const regularVideos = videos.filter((v) => !v.is_short).slice(0, 8);
-  const shorts = videos.filter((v) => v.is_short).slice(0, 8);
+  }, [loadFeed, clearProgressPolling]);
 
   return (
     <div
@@ -215,7 +192,7 @@ export default function Home() {
         sortBy={sortBy}
         onSortChange={(s) => {
           setSortBy(s);
-          setIsLoadingArticles(true);
+          setIsLoading(true);
         }}
       />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
@@ -224,7 +201,7 @@ export default function Home() {
           selectedSource={selectedSource}
           onSelectSource={(s) => {
             setSelectedSource(s);
-            setIsLoadingArticles(true);
+            setIsLoading(true);
           }}
         />
         <main
@@ -235,193 +212,7 @@ export default function Home() {
             minWidth: 0,
           }}
         >
-          {/* Videos strip - no heading, seamless */}
-          {videos.length > 0 && (
-            <div
-              style={{
-                padding: '16px 24px 8px',
-                borderBottom: '1px solid var(--border)',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  gap: '14px',
-                  overflowX: 'auto',
-                  paddingBottom: '6px',
-                }}
-              >
-                {/* Shorts first - taller cards */}
-                {shorts.map((video) => (
-                  <a
-                    key={video.id}
-                    href={video.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={`${video.channel_name}: ${video.title}`}
-                    style={{
-                      flex: '0 0 140px',
-                      backgroundColor: 'var(--bg-secondary)',
-                      border: '1px solid var(--border)',
-                      borderRadius: '10px',
-                      overflow: 'hidden',
-                      textDecoration: 'none',
-                      color: 'inherit',
-                      transition: 'transform 0.15s, box-shadow 0.2s',
-                      boxShadow: 'var(--shadow-sm)',
-                      position: 'relative',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-                    }}
-                  >
-                    <div style={{ position: 'relative', paddingTop: '177%', backgroundColor: 'var(--bg-tertiary)' }}>
-                      {video.thumbnail_url && (
-                        <img
-                          src={video.thumbnail_url}
-                          alt={video.title}
-                          style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover',
-                          }}
-                        />
-                      )}
-                      <div
-                        style={{
-                          position: 'absolute',
-                          inset: 0,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          backgroundColor: 'rgba(0,0,0,0.15)',
-                        }}
-                      >
-                        <span style={{ fontSize: '20px' }}>▶</span>
-                      </div>
-                      <span
-                        style={{
-                          position: 'absolute',
-                          top: '6px',
-                          left: '6px',
-                          backgroundColor: 'rgba(0,0,0,0.7)',
-                          color: '#fff',
-                          fontSize: '9px',
-                          fontWeight: 700,
-                          padding: '2px 6px',
-                          borderRadius: '4px',
-                          textTransform: 'uppercase',
-                        }}
-                      >
-                        Short
-                      </span>
-                    </div>
-                  </a>
-                ))}
-
-                {/* Regular videos - landscape cards */}
-                {regularVideos.map((video) => (
-                  <a
-                    key={video.id}
-                    href={video.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={`${video.channel_name}: ${video.title}`}
-                    style={{
-                      flex: '0 0 240px',
-                      backgroundColor: 'var(--bg-secondary)',
-                      border: '1px solid var(--border)',
-                      borderRadius: '10px',
-                      overflow: 'hidden',
-                      textDecoration: 'none',
-                      color: 'inherit',
-                      transition: 'transform 0.15s, box-shadow 0.2s',
-                      boxShadow: 'var(--shadow-sm)',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-                    }}
-                  >
-                    <div style={{ position: 'relative', paddingTop: '56.25%', backgroundColor: 'var(--bg-tertiary)' }}>
-                      {video.thumbnail_url && (
-                        <img
-                          src={video.thumbnail_url}
-                          alt={video.title}
-                          style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover',
-                          }}
-                        />
-                      )}
-                      <div
-                        style={{
-                          position: 'absolute',
-                          inset: 0,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          backgroundColor: 'rgba(0,0,0,0.15)',
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: '50%',
-                            backgroundColor: 'rgba(0,0,0,0.6)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                        >
-                          <span style={{ color: '#fff', fontSize: '14px' }}>▶</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ padding: '8px 10px' }}>
-                      <p
-                        style={{
-                          fontSize: '12px',
-                          fontWeight: 600,
-                          color: 'var(--text-primary)',
-                          lineHeight: 1.3,
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                          overflow: 'hidden',
-                        }}
-                      >
-                        {video.title}
-                      </p>
-                      <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '3px' }}>
-                        {video.channel_name}
-                      </p>
-                    </div>
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Articles grid - no heading */}
-          <NewsGrid articles={articles} isLoading={isLoadingArticles} />
+          <NewsGrid items={feedItems} isLoading={isLoading} />
         </main>
       </div>
 

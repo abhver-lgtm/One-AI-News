@@ -1,10 +1,10 @@
 'use client';
 
-import { Article } from '@/lib/api';
+import { FeedItem } from '@/lib/api';
 import { ExternalLink, Clock } from 'lucide-react';
 
 interface NewsCardProps {
-  article: Article;
+  item: FeedItem;
 }
 
 function timeAgo(dateString: string): string {
@@ -19,10 +19,10 @@ function timeAgo(dateString: string): string {
   return date.toLocaleDateString();
 }
 
-export default function NewsCard({ article }: NewsCardProps) {
+export default function NewsCard({ item }: NewsCardProps) {
   return (
     <a
-      href={article.url}
+      href={item.url}
       target="_blank"
       rel="noopener noreferrer"
       style={{
@@ -65,7 +65,7 @@ export default function NewsCard({ article }: NewsCardProps) {
           }}
           title="Topic suggested by DeepSeek AI"
         >
-          {article.topic_emoji}
+          {item.topic_emoji || '📰'}
         </span>
         <span
           style={{
@@ -83,7 +83,7 @@ export default function NewsCard({ article }: NewsCardProps) {
             border: '1px solid var(--border)',
           }}
         >
-          {article.source_name}
+          {item.source_name}
         </span>
         <span
           style={{
@@ -97,7 +97,7 @@ export default function NewsCard({ article }: NewsCardProps) {
           }}
         >
           <Clock size={12} />
-          {timeAgo(article.published_at)}
+          {timeAgo(item.published_at)}
         </span>
       </div>
 
@@ -116,7 +116,7 @@ export default function NewsCard({ article }: NewsCardProps) {
           letterSpacing: '-0.2px',
         }}
       >
-        {article.title}
+        {item.title}
       </h3>
 
       {/* Description */}
@@ -132,7 +132,7 @@ export default function NewsCard({ article }: NewsCardProps) {
           marginBottom: '14px',
         }}
       >
-        {article.description}
+        {item.description}
       </p>
 
       {/* Footer: relevance score + external link */}
@@ -149,14 +149,14 @@ export default function NewsCard({ article }: NewsCardProps) {
           style={{
             fontSize: '11px',
             fontWeight: 700,
-            color: article.relevance_score >= 80 ? 'var(--accent)' : 'var(--text-muted)',
-            backgroundColor: article.relevance_score >= 80 ? 'var(--accent-soft)' : 'transparent',
-            padding: article.relevance_score >= 80 ? '2px 8px' : '2px 0',
+            color: item.relevance_score >= 80 ? 'var(--accent)' : 'var(--text-muted)',
+            backgroundColor: item.relevance_score >= 80 ? 'var(--accent-soft)' : 'transparent',
+            padding: item.relevance_score >= 80 ? '2px 8px' : '2px 0',
             borderRadius: '4px',
           }}
           title="Relevance score by DeepSeek AI"
         >
-          {article.relevance_score >= 80 ? '🔥 HIGH RELEVANCE' : `SCORE ${Math.round(article.relevance_score)}`}
+          {item.relevance_score >= 80 ? '🔥 HIGH RELEVANCE' : `SCORE ${Math.round(item.relevance_score)}`}
         </span>
         <span
           style={{

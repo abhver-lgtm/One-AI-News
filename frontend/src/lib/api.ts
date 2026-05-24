@@ -1,29 +1,16 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
-export interface Article {
+export interface FeedItem {
   id: number;
+  type: 'article' | 'video';
   title: string;
   description: string;
   url: string;
-  source: string;
   source_name: string;
   published_at: string;
-  created_at: string;
   relevance_score: number;
-  topic_emoji: string;
-}
-
-export interface Video {
-  id: number;
-  title: string;
-  description: string;
-  url: string;
-  thumbnail_url: string;
-  channel_id: string;
-  channel_name: string;
-  published_at: string;
-  created_at: string;
-  is_short: boolean;
+  topic_emoji?: string;
+  thumbnail_url?: string;
 }
 
 export interface SourceInfo {
@@ -61,27 +48,17 @@ export interface ProgressState {
   finished_at: string | null;
 }
 
-export async function fetchNews(source?: string, sortBy: 'published' | 'relevance' = 'published'): Promise<Article[]> {
-  const url = new URL(`${API_BASE}/api/news`, typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
+export async function fetchFeed(
+  source?: string,
+  sortBy: 'published' | 'relevance' = 'relevance',
+  limit: number = 200
+): Promise<FeedItem[]> {
+  const url = new URL(`${API_BASE}/api/feed`, typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
   if (source) url.searchParams.set('source', source);
   url.searchParams.set('sort_by', sortBy);
+  url.searchParams.set('limit', String(limit));
   const res = await fetch(url.toString());
-  if (!res.ok) throw new Error('Failed to fetch news');
-  return res.json();
-}
-
-export async function fetchVideos(channelId?: string): Promise<Video[]> {
-  const url = new URL(`${API_BASE}/api/videos`, typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
-  if (channelId) url.searchParams.set('channel_id', channelId);
-  const res = await fetch(url.toString());
-  if (!res.ok) throw new Error('Failed to fetch videos');
-  return res.json();
-}
-
-export async function fetchVideoChannels(): Promise<SourceInfo[]> {
-  const url = `${API_BASE}/api/video-channels`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Failed to fetch video channels');
+  if (!res.ok) throw new Error('Failed to fetch feed');
   return res.json();
 }
 
@@ -96,13 +73,6 @@ export async function refreshNews(): Promise<RefreshResponse> {
   const url = `${API_BASE}/api/refresh`;
   const res = await fetch(url, { method: 'POST' });
   if (!res.ok) throw new Error('Failed to refresh news');
-  return res.json();
-}
-
-export async function refreshVideos(): Promise<RefreshResponse> {
-  const url = `${API_BASE}/api/refresh/videos`;
-  const res = await fetch(url, { method: 'POST' });
-  if (!res.ok) throw new Error('Failed to refresh videos');
   return res.json();
 }
 

@@ -1,14 +1,15 @@
 'use client';
 
-import { Article } from '@/lib/api';
+import { FeedItem } from '@/lib/api';
 import NewsCard from './NewsCard';
+import VideoCard from './VideoCard';
 
 interface NewsGridProps {
-  articles: Article[];
+  items: FeedItem[];
   isLoading: boolean;
 }
 
-export default function NewsGrid({ articles, isLoading }: NewsGridProps) {
+export default function NewsGrid({ items, isLoading }: NewsGridProps) {
   if (isLoading) {
     return (
       <div
@@ -43,7 +44,7 @@ export default function NewsGrid({ articles, isLoading }: NewsGridProps) {
     );
   }
 
-  if (articles.length === 0) {
+  if (items.length === 0) {
     return (
       <div
         style={{
@@ -58,7 +59,7 @@ export default function NewsGrid({ articles, isLoading }: NewsGridProps) {
         }}
       >
         <span style={{ fontSize: '32px' }}>📭</span>
-        No articles found.
+        No items found.
       </div>
     );
   }
@@ -73,9 +74,13 @@ export default function NewsGrid({ articles, isLoading }: NewsGridProps) {
         alignContent: 'start',
       }}
     >
-      {articles.map((article) => (
-        <NewsCard key={article.id} article={article} />
-      ))}
+      {items.map((item) =>
+        item.type === 'video' ? (
+          <VideoCard key={item.id} item={item} />
+        ) : (
+          <NewsCard key={item.id} item={item} />
+        )
+      )}
     </div>
   );
 }

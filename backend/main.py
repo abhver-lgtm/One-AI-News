@@ -16,7 +16,7 @@ from scraper import scrape_all
 from youtube_scraper import scrape_youtube
 from deepseek import analyze_articles_sync, test_deepseek
 from progress import progress_manager, ScrapeProgressState
-from models import Article, SourceInfo, RefreshResponse, AnalyzeResponse, Video
+from models import Article, SourceInfo, RefreshResponse, AnalyzeResponse, Video, FeedItem
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -166,6 +166,16 @@ def read_videos(
 @app.get("/api/video-channels", response_model=List[SourceInfo])
 def read_video_channels():
     return get_video_channels()
+
+
+@app.get("/api/feed", response_model=List[FeedItem])
+def read_feed(
+    source: Optional[str] = Query(None),
+    limit: int = Query(200, ge=1, le=500),
+    sort_by: str = Query("published", regex="^(published|relevance)$"),
+):
+    from database import get_feed
+    return get_feed(source=source, limit=limit, sort_by=sort_by)
 
 
 @app.post("/api/refresh/videos", response_model=RefreshResponse)

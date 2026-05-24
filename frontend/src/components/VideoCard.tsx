@@ -1,10 +1,10 @@
 'use client';
 
-import { Video } from '@/lib/api';
-import { Play, Clock, ExternalLink } from 'lucide-react';
+import { FeedItem } from '@/lib/api';
+import { Play, Clock } from 'lucide-react';
 
 interface VideoCardProps {
-  video: Video;
+  item: FeedItem;
 }
 
 function timeAgo(dateString: string): string {
@@ -19,13 +19,10 @@ function timeAgo(dateString: string): string {
   return date.toLocaleDateString();
 }
 
-export default function VideoCard({ video }: VideoCardProps) {
-  const videoId = video.url.includes('v=') ? video.url.split('v=')[1]?.split('&')[0] : null;
-  const embedUrl = videoId ? `https://www.youtube.com/embed/${videoId}` : null;
-
+export default function VideoCard({ item }: VideoCardProps) {
   return (
     <a
-      href={video.url}
+      href={item.url}
       target="_blank"
       rel="noopener noreferrer"
       style={{
@@ -60,10 +57,10 @@ export default function VideoCard({ video }: VideoCardProps) {
           overflow: 'hidden',
         }}
       >
-        {video.thumbnail_url ? (
+        {item.thumbnail_url ? (
           <img
-            src={video.thumbnail_url}
-            alt={video.title}
+            src={item.thumbnail_url}
+            alt={item.title}
             style={{
               position: 'absolute',
               top: 0,
@@ -119,7 +116,7 @@ export default function VideoCard({ video }: VideoCardProps) {
               border: '1px solid var(--border)',
             }}
           >
-            {video.channel_name}
+            {item.source_name}
           </span>
           <span
             style={{
@@ -132,7 +129,7 @@ export default function VideoCard({ video }: VideoCardProps) {
             }}
           >
             <Clock size={11} />
-            {timeAgo(video.published_at)}
+            {timeAgo(item.published_at)}
           </span>
         </div>
 
@@ -149,7 +146,7 @@ export default function VideoCard({ video }: VideoCardProps) {
             overflow: 'hidden',
           }}
         >
-          {video.title}
+          {item.title}
         </h3>
 
         <p
@@ -163,7 +160,7 @@ export default function VideoCard({ video }: VideoCardProps) {
             overflow: 'hidden',
           }}
         >
-          {video.description}
+          {item.description}
         </p>
       </div>
     </a>

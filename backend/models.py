@@ -36,7 +36,22 @@ class Video(BaseModel):
     channel_name: str
     published_at: datetime
     created_at: datetime
-    is_short: bool = False
+
+    class Config:
+        from_attributes = True
+
+
+class FeedItem(BaseModel):
+    id: int
+    type: str  # "article" | "video"
+    title: str
+    description: str
+    url: str
+    source_name: str
+    published_at: datetime
+    relevance_score: float
+    topic_emoji: Optional[str] = None
+    thumbnail_url: Optional[str] = None
 
     class Config:
         from_attributes = True

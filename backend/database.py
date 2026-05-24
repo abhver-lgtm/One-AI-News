@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 from contextlib import contextmanager
 from typing import List, Optional
-from models import Article, SourceInfo, Video
+from models import Article, SourceInfo, Video, FeedItem
 
 DB_PATH = os.environ.get("DATABASE_PATH", "data/news.db")
 
@@ -59,7 +59,6 @@ def init_db():
                 topic_emoji TEXT DEFAULT '📰'
             )
         """)
-        # Add new columns if table exists without them
         try:
             conn.execute("ALTER TABLE articles ADD COLUMN relevance_score REAL DEFAULT 50.0")
         except sqlite3.OperationalError:
@@ -78,7 +77,6 @@ def init_db():
             CREATE INDEX IF NOT EXISTS idx_articles_relevance ON articles(relevance_score DESC)
         """)
 
-        # Videos table
         conn.execute("""
             CREATE TABLE IF NOT EXISTS videos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,14 +87,9 @@ def init_db():
                 channel_id TEXT NOT NULL,
                 channel_name TEXT NOT NULL,
                 published_at TIMESTAMP,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                is_short INTEGER DEFAULT 0
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        try:
-            conn.execute("ALTER TABLE videos ADD COLUMN is_short INTEGER DEFAULT 0")
-        except sqlite3.OperationalError:
-            pass
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_videos_channel ON videos(channel_id)
         """)
@@ -216,15 +209,15 @@ def get_article_count() -> int:
 
 # Video operations
 
-def insert_video(title: str, description: str, url: str, thumbnail_url: str, channel_id: str, channel_name: str, published_at: datetime, is_short: bool = False) -> Optional[int]:
+def insert_video(title: str, description: str, url: str, thumbnail_url: str, channel_id: str, channel_name: str, published_at: datetime) -> Optional[int]:
     with get_db() as conn:
         try:
             cursor = conn.execute(
                 """
-                INSERT INTO videos (title, description, url, thumbnail_url, channel_id, channel_name, published_at, is_short)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO videos (title, description, url, thumbnail_url, channel_id, channel_name, published_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (title, description, url, thumbnail_url, channel_id, channel_name, published_at.isoformat(), 1 if is_short else 0)
+                (title, description, url, thumbnail_url, channel_id, channel_name, published_at.isoformat())
             )
             conn.commit()
             return cursor.lastrowid
@@ -254,7 +247,6 @@ def get_videos(channel_id: Optional[str] = None, limit: int = 100) -> List[Video
             channel_name=r["channel_name"],
             published_at=datetime.fromisoformat(r["published_at"]) if r["published_at"] else datetime.utcnow(),
             created_at=datetime.fromisoformat(r["created_at"]) if r["created_at"] else datetime.utcnow(),
-            is_short=bool(r["is_short"]),
         ) for r in rows]
 
 
@@ -279,3 +271,65 @@ def get_video_count() -> int:
     with get_db() as conn:
         row = conn.execute("SELECT COUNT(*) as cnt FROM videos").fetchone()
         return row["cnt"] if row else 0
+
+
+# Unified feed
+
+def get_feed(source: Optional[str] = None, limit: int = 200, sort_by: str = "published") -> List[FeedItem]:
+    with get_db() as conn:
+        # Fetch articles
+        if source:
+            article_rows = conn.execute(
+                "SELECT * FROM articles WHERE source = ? ORDER BY published_at DESC LIMIT ?",
+                (source, limit)
+            ).fetchall()
+        else:
+            article_rows = conn.execute(
+                "SELECT * FROM articles ORDER BY published_at DESC LIMIT ?",
+                (limit,)
+            ).fetchall()
+
+        # Fetch videos only when no source filter is applied
+        video_rows = []
+        if not source:
+            video_limit = limit // 2
+            video_rows = conn.execute(
+                "SELECT * FROM videos ORDER BY published_at DESC LIMIT ?",
+                (video_limit,)
+            ).fetchall()
+
+        feed = []
+        for r in article_rows:
+            feed.append(FeedItem(
+                id=r["id"],
+                type="article",
+                title=r["title"],
+                description=r["description"] or "",
+                url=r["url"],
+                source_name=r["source_name"],
+                published_at=datetime.fromisoformat(r["published_at"]) if r["published_at"] else datetime.utcnow(),
+                relevance_score=r["relevance_score"] if r["relevance_score"] is not None else 50.0,
+                topic_emoji=r["topic_emoji"] or "📰",
+                thumbnail_url=None,
+            ))
+
+        for r in video_rows:
+            feed.append(FeedItem(
+                id=r["id"] + 1000000,
+                type="video",
+                title=r["title"],
+                description=r["description"] or "",
+                url=r["url"],
+                source_name=r["channel_name"],
+                published_at=datetime.fromisoformat(r["published_at"]) if r["published_at"] else datetime.utcnow(),
+                relevance_score=50.0,
+                topic_emoji=None,
+                thumbnail_url=r["thumbnail_url"],
+            ))
+
+        if sort_by == "relevance":
+            feed.sort(key=lambda x: (x.relevance_score, x.published_at), reverse=True)
+        else:
+            feed.sort(key=lambda x: x.published_at, reverse=True)
+
+        return feed[:limit]
