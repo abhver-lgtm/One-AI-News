@@ -28,6 +28,12 @@ def truncate_text(text: str, length: int = 200) -> str:
     return text[:length].rsplit(" ", 1)[0] + "..."
 
 
+def is_short(title: str) -> bool:
+    """Detect YouTube Shorts by title heuristics."""
+    t = title.lower()
+    return '#shorts' in t or '#short' in t or '｜shorts' in t or 'shorts' in t
+
+
 def extract_video_id(youtube_url: str) -> Optional[str]:
     """Extract YouTube video ID from various URL formats."""
     patterns = [
@@ -93,6 +99,7 @@ def fetch_channel_rss(channel_id: str) -> List[dict]:
                 "url": link,
                 "thumbnail_url": thumbnail_url,
                 "published_at": published,
+                "is_short": is_short(title),
             })
         return entries
     except Exception as e:
@@ -126,6 +133,7 @@ async def scrape_youtube(progress: Optional[ScrapeProgressManager] = None) -> Tu
                 channel_id=channel_id,
                 channel_name=channel["name"],
                 published_at=entry["published_at"],
+                is_short=entry.get("is_short", False),
             )
             if video_id is not None:
                 added += 1

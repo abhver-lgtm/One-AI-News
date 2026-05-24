@@ -89,9 +89,14 @@ def init_db():
                 channel_id TEXT NOT NULL,
                 channel_name TEXT NOT NULL,
                 published_at TIMESTAMP,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                is_short INTEGER DEFAULT 0
             )
         """)
+        try:
+            conn.execute("ALTER TABLE videos ADD COLUMN is_short INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_videos_channel ON videos(channel_id)
         """)
@@ -211,13 +216,13 @@ def get_article_count() -> int:
 
 # Video operations
 
-def insert_video(title: str, description: str, url: str, thumbnail_url: str, channel_id: str, channel_name: str, published_at: datetime) -> Optional[int]:
+def insert_video(title: str, description: str, url: str, thumbnail_url: str, channel_id: str, channel_name: str, published_at: datetime, is_short: bool = False) -> Optional[int]:
     with get_db() as conn:
         try:
             cursor = conn.execute(
                 """
                 INSERT INTO videos (title, description, url, thumbnail_url, channel_id, channel_name, published_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (title, description, url, thumbnail_url, channel_id, channel_name, published_at.isoformat())
             )
@@ -249,6 +254,7 @@ def get_videos(channel_id: Optional[str] = None, limit: int = 100) -> List[Video
             channel_name=r["channel_name"],
             published_at=datetime.fromisoformat(r["published_at"]) if r["published_at"] else datetime.utcnow(),
             created_at=datetime.fromisoformat(r["created_at"]) if r["created_at"] else datetime.utcnow(),
+            is_short=bool(r["is_short"]),
         ) for r in rows]
 
 

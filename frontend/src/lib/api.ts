@@ -23,6 +23,7 @@ export interface Video {
   channel_name: string;
   published_at: string;
   created_at: string;
+  is_short: boolean;
 }
 
 export interface SourceInfo {

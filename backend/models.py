@@ -36,6 +36,7 @@ class Video(BaseModel):
     channel_name: str
     published_at: datetime
     created_at: datetime
+    is_short: bool = False
 
     class Config:
         from_attributes = True
