@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 from contextlib import contextmanager
 from typing import List, Optional
-from models import Article, SourceInfo
+from models import Article, SourceInfo, Video
 
 DB_PATH = os.environ.get("DATABASE_PATH", "data/news.db")
 
@@ -21,6 +21,20 @@ SOURCES = [
     {"name": "TechCrunch AI", "source": "techcrunch", "color": "#0a9f00", "rss": "https://techcrunch.com/category/artificial-intelligence/feed/"},
     {"name": "The Verge AI", "source": "the-verge", "color": "#e2127a", "rss": "https://www.theverge.com/ai-artificial-intelligence/rss/index.xml"},
     {"name": "Wired AI", "source": "wired", "color": "#000000", "rss": "https://www.wired.com/tag/artificial-intelligence/rss/"},
+]
+
+YOUTUBE_CHANNELS = [
+    {"name": "Two Minute Papers", "channel_id": "UCbfYPyITQ-7l4upoX8nvctg", "color": "#ff0000"},
+    {"name": "Matt Wolfe", "channel_id": "UChpleBmo18P08aKCIgti38g", "color": "#ff0000"},
+    {"name": "AI Explained", "channel_id": "UCp_9GybIeJV5CBvLlJkFvA", "color": "#ff0000"},
+    {"name": "Yannic Kilcher", "channel_id": "UCZHmQk67mSJgfCCTn7xBfew", "color": "#ff0000"},
+    {"name": "Matthew Berman", "channel_id": "UCzi5kcwU8aT4aLR7LcYhfWQ", "color": "#ff0000"},
+    {"name": "MattVidPro AI", "channel_id": "UC5Wz4fFacYuON6IKbhSa7Zw", "color": "#ff0000"},
+    {"name": "Fireship", "channel_id": "UCsBjURrPoezykLs9EqgamOA", "color": "#ff0000"},
+    {"name": "Sentdex", "channel_id": "UCfzlCWGWYyIQ0aLC5w48gBQ", "color": "#ff0000"},
+    {"name": "Lex Fridman", "channel_id": "UCSHZKyawb77ixDdsGog4iWA", "color": "#ff0000"},
+    {"name": "ColdFusion", "channel_id": "UC4QZ_LsYcvcq7qOsOhpAX4A", "color": "#ff0000"},
+    {"name": "Siraj Raval", "channel_id": "UCWN3xxRkmTPmbKwht9FuE5A", "color": "#ff0000"},
 ]
 
 
@@ -62,6 +76,27 @@ def init_db():
         """)
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_articles_relevance ON articles(relevance_score DESC)
+        """)
+
+        # Videos table
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS videos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                description TEXT,
+                url TEXT NOT NULL UNIQUE,
+                thumbnail_url TEXT,
+                channel_id TEXT NOT NULL,
+                channel_name TEXT NOT NULL,
+                published_at TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_videos_channel ON videos(channel_id)
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_videos_published ON videos(published_at DESC)
         """)
         conn.commit()
 
@@ -171,4 +206,70 @@ def get_sources() -> List[SourceInfo]:
 def get_article_count() -> int:
     with get_db() as conn:
         row = conn.execute("SELECT COUNT(*) as cnt FROM articles").fetchone()
+        return row["cnt"] if row else 0
+
+
+# Video operations
+
+def insert_video(title: str, description: str, url: str, thumbnail_url: str, channel_id: str, channel_name: str, published_at: datetime) -> Optional[int]:
+    with get_db() as conn:
+        try:
+            cursor = conn.execute(
+                """
+                INSERT INTO videos (title, description, url, thumbnail_url, channel_id, channel_name, published_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (title, description, url, thumbnail_url, channel_id, channel_name, published_at.isoformat())
+            )
+            conn.commit()
+            return cursor.lastrowid
+        except sqlite3.IntegrityError:
+            return None
+
+
+def get_videos(channel_id: Optional[str] = None, limit: int = 100) -> List[Video]:
+    with get_db() as conn:
+        if channel_id:
+            rows = conn.execute(
+                "SELECT * FROM videos WHERE channel_id = ? ORDER BY published_at DESC LIMIT ?",
+                (channel_id, limit)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM videos ORDER BY published_at DESC LIMIT ?",
+                (limit,)
+            ).fetchall()
+        return [Video(
+            id=r["id"],
+            title=r["title"],
+            description=r["description"],
+            url=r["url"],
+            thumbnail_url=r["thumbnail_url"],
+            channel_id=r["channel_id"],
+            channel_name=r["channel_name"],
+            published_at=datetime.fromisoformat(r["published_at"]) if r["published_at"] else datetime.utcnow(),
+            created_at=datetime.fromisoformat(r["created_at"]) if r["created_at"] else datetime.utcnow(),
+        ) for r in rows]
+
+
+def get_video_channels() -> List[SourceInfo]:
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT channel_id, channel_name, COUNT(*) as cnt FROM videos GROUP BY channel_id, channel_name"
+        ).fetchall()
+        counts = {r["channel_id"]: r["cnt"] for r in rows}
+        result = []
+        for c in YOUTUBE_CHANNELS:
+            result.append(SourceInfo(
+                name=c["name"],
+                source=c["channel_id"],
+                color=c["color"],
+                article_count=counts.get(c["channel_id"], 0)
+            ))
+        return result
+
+
+def get_video_count() -> int:
+    with get_db() as conn:
+        row = conn.execute("SELECT COUNT(*) as cnt FROM videos").fetchone()
         return row["cnt"] if row else 0

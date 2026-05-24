@@ -4,27 +4,43 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import NewsGrid from '@/components/NewsGrid';
+import VideoGrid from '@/components/VideoGrid';
 import RefreshModal from '@/components/RefreshModal';
-import AdColumn from '@/components/AdColumn';
-import { fetchNews, fetchSources, refreshNews, analyzeNews, createProgressStream, Article, SourceInfo, ProgressState } from '@/lib/api';
+import {
+  fetchNews,
+  fetchVideos,
+  fetchVideoChannels,
+  fetchSources,
+  refreshNews,
+  refreshVideos,
+  analyzeNews,
+  createProgressStream,
+  Article,
+  Video,
+  SourceInfo,
+  ProgressState,
+} from '@/lib/api';
 
 const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
 
 export default function Home() {
   const [articles, setArticles] = useState<Article[]>([]);
+  const [videos, setVideos] = useState<Video[]>([]);
   const [sources, setSources] = useState<SourceInfo[]>([]);
+  const [videoChannels, setVideoChannels] = useState<SourceInfo[]>([]);
   const [selectedSource, setSelectedSource] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [totalArticles, setTotalArticles] = useState(0);
   const [sortBy, setSortBy] = useState<'published' | 'relevance'>('published');
+  const [activeTab, setActiveTab] = useState<'articles' | 'videos'>('articles');
   const [progress, setProgress] = useState<ProgressState | null>(null);
   const [showModal, setShowModal] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const loadData = useCallback(async () => {
+  const loadArticles = useCallback(async () => {
     try {
       const [newsData, sourcesData] = await Promise.all([
         fetchNews(selectedSource || undefined, sortBy),
@@ -34,11 +50,32 @@ export default function Home() {
       setSources(sourcesData);
       setTotalArticles(sourcesData.reduce((sum, s) => sum + s.article_count, 0));
     } catch (err) {
-      console.error('Error loading data:', err);
-    } finally {
-      setIsLoading(false);
+      console.error('Error loading articles:', err);
     }
   }, [selectedSource, sortBy]);
+
+  const loadVideos = useCallback(async () => {
+    try {
+      const [videosData, channelsData] = await Promise.all([
+        fetchVideos(selectedSource || undefined),
+        fetchVideoChannels(),
+      ]);
+      setVideos(videosData);
+      setVideoChannels(channelsData);
+    } catch (err) {
+      console.error('Error loading videos:', err);
+    }
+  }, [selectedSource]);
+
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    if (activeTab === 'articles') {
+      await loadArticles();
+    } else {
+      await loadVideos();
+    }
+    setIsLoading(false);
+  }, [activeTab, loadArticles, loadVideos]);
 
   const startProgressStream = useCallback(() => {
     if (eventSourceRef.current) {
@@ -49,7 +86,6 @@ export default function Home() {
       (state) => {
         setProgress(state);
         if (state.status === 'done') {
-          // Give user a moment to see "done" before auto-closing
           setTimeout(() => {
             loadData();
             setShowModal(false);
@@ -57,7 +93,6 @@ export default function Home() {
         }
       },
       () => {
-        // on error, fall back to polling
         console.log('SSE error, falling back to polling');
       }
     );
@@ -67,14 +102,18 @@ export default function Home() {
     if (isRefreshing) return;
     setIsRefreshing(true);
     try {
-      await refreshNews();
+      if (activeTab === 'videos') {
+        await refreshVideos();
+      } else {
+        await refreshNews();
+      }
       startProgressStream();
     } catch (err) {
       console.error('Error refreshing:', err);
     } finally {
       setIsRefreshing(false);
     }
-  }, [isRefreshing, startProgressStream]);
+  }, [isRefreshing, activeTab, startProgressStream]);
 
   const handleAnalyze = useCallback(async () => {
     if (isAnalyzing) return;
@@ -106,6 +145,8 @@ export default function Home() {
     };
   }, [handleRefresh]);
 
+  const currentSources = activeTab === 'articles' ? sources : videoChannels;
+
   return (
     <div
       style={{
@@ -128,10 +169,16 @@ export default function Home() {
           setSortBy(s);
           setIsLoading(true);
         }}
+        activeTab={activeTab}
+        onTabChange={(tab) => {
+          setActiveTab(tab);
+          setIsLoading(true);
+          setSelectedSource(null);
+        }}
       />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Sidebar
-          sources={sources}
+          sources={currentSources}
           selectedSource={selectedSource}
           onSelectSource={(s) => {
             setSelectedSource(s);
@@ -146,9 +193,12 @@ export default function Home() {
             minWidth: 0,
           }}
         >
-          <NewsGrid articles={articles} isLoading={isLoading} />
+          {activeTab === 'articles' ? (
+            <NewsGrid articles={articles} isLoading={isLoading} />
+          ) : (
+            <VideoGrid videos={videos} isLoading={isLoading} />
+          )}
         </main>
-        <AdColumn />
       </div>
 
       {showModal && (

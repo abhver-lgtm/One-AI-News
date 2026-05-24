@@ -3,7 +3,7 @@ import { ThemeProvider } from '@/lib/theme';
 
 export const metadata = {
   title: 'AI News Aggregator',
-  description: 'Aggregated AI news from top sources, ranked by DeepSeek AI',
+  description: 'Aggregated AI news and videos from top sources',
 };
 
 export default function RootLayout({
@@ -19,12 +19,6 @@ export default function RootLayout({
         <link
           href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap"
           rel="stylesheet"
-        />
-        {/* Google AdSense — replace ca-pub-XXXXXXXXXXXXXXXX with your actual ID */}
-        <script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX"
-          crossOrigin="anonymous"
         />
       </head>
       <body>

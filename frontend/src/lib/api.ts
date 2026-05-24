@@ -13,6 +13,18 @@ export interface Article {
   topic_emoji: string;
 }
 
+export interface Video {
+  id: number;
+  title: string;
+  description: string;
+  url: string;
+  thumbnail_url: string;
+  channel_id: string;
+  channel_name: string;
+  published_at: string;
+  created_at: string;
+}
+
 export interface SourceInfo {
   name: string;
   source: string;
@@ -57,6 +69,21 @@ export async function fetchNews(source?: string, sortBy: 'published' | 'relevanc
   return res.json();
 }
 
+export async function fetchVideos(channelId?: string): Promise<Video[]> {
+  const url = new URL(`${API_BASE}/api/videos`, typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000');
+  if (channelId) url.searchParams.set('channel_id', channelId);
+  const res = await fetch(url.toString());
+  if (!res.ok) throw new Error('Failed to fetch videos');
+  return res.json();
+}
+
+export async function fetchVideoChannels(): Promise<SourceInfo[]> {
+  const url = `${API_BASE}/api/video-channels`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch video channels');
+  return res.json();
+}
+
 export async function fetchSources(): Promise<SourceInfo[]> {
   const url = `${API_BASE}/api/sources`;
   const res = await fetch(url);
@@ -68,6 +95,13 @@ export async function refreshNews(): Promise<RefreshResponse> {
   const url = `${API_BASE}/api/refresh`;
   const res = await fetch(url, { method: 'POST' });
   if (!res.ok) throw new Error('Failed to refresh news');
+  return res.json();
+}
+
+export async function refreshVideos(): Promise<RefreshResponse> {
+  const url = `${API_BASE}/api/refresh/videos`;
+  const res = await fetch(url, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to refresh videos');
   return res.json();
 }
 

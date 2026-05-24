@@ -26,6 +26,21 @@ class Article(ArticleBase):
         from_attributes = True
 
 
+class Video(BaseModel):
+    id: int
+    title: str
+    description: str
+    url: str
+    thumbnail_url: Optional[str]
+    channel_id: str
+    channel_name: str
+    published_at: datetime
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class SourceInfo(BaseModel):
     name: str
     source: str

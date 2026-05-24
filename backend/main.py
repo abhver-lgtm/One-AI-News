@@ -11,11 +11,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from database import init_db, get_articles, get_sources, get_article_count, get_unanalyzed_articles, update_article_metadata
+from database import init_db, get_articles, get_sources, get_article_count, get_unanalyzed_articles, update_article_metadata, get_videos, get_video_channels, get_video_count
 from scraper import scrape_all
+from youtube_scraper import scrape_youtube
 from deepseek import analyze_articles_sync
 from progress import progress_manager, ScrapeProgressState
-from models import Article, SourceInfo, RefreshResponse, AnalyzeResponse
+from models import Article, SourceInfo, RefreshResponse, AnalyzeResponse, Video
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -29,9 +30,11 @@ scheduler = BackgroundScheduler()
 def scheduled_scrape():
     try:
         logger.info("Running scheduled scrape job...")
-        # Scheduled scrapes run silently without progress reporting
-        import asyncio
-        asyncio.run(scrape_all())
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(scrape_all())
+        loop.run_until_complete(scrape_youtube())
+        loop.close()
         logger.info("Scheduled scrape done")
     except Exception as e:
         logger.error(f"Scheduled scrape failed: {e}")
@@ -40,8 +43,8 @@ def scheduled_scrape():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    # Initial scrape on startup (silent)
-    scheduled_scrape()
+    await scrape_all()
+    await scrape_youtube()
     scheduler.add_job(scheduled_scrape, "interval", minutes=REFRESH_INTERVAL_MINUTES, id="news_scrape")
     scheduler.start()
     yield
@@ -62,9 +65,12 @@ app.add_middleware(
 )
 
 
-async def do_refresh_with_progress():
+async def do_refresh_with_progress(include_youtube: bool = True):
     await progress_manager.reset()
     await scrape_all(progress=progress_manager)
+    if include_youtube:
+        await scrape_youtube(progress=progress_manager)
+    await progress_manager.finish()
 
 
 async def do_analyze_with_progress():
@@ -147,6 +153,43 @@ def analyze_news(background_tasks: BackgroundTasks):
     )
 
 
+# Videos API
+
+@app.get("/api/videos", response_model=List[Video])
+def read_videos(
+    channel_id: Optional[str] = Query(None),
+    limit: int = Query(100, ge=1, le=200),
+):
+    return get_videos(channel_id=channel_id, limit=limit)
+
+
+@app.get("/api/video-channels", response_model=List[SourceInfo])
+def read_video_channels():
+    return get_video_channels()
+
+
+@app.post("/api/refresh/videos", response_model=RefreshResponse)
+def refresh_videos(background_tasks: BackgroundTasks):
+    if progress_manager.get_state().status in ("scraping", "analyzing"):
+        return RefreshResponse(
+            success=False,
+            message="A scrape is already in progress",
+            added=0,
+            skipped=0,
+        )
+    async def do_youtube_only():
+        await progress_manager.reset()
+        await scrape_youtube(progress=progress_manager)
+        await progress_manager.finish()
+    background_tasks.add_task(do_youtube_only)
+    return RefreshResponse(
+        success=True,
+        message="YouTube scrape started in background",
+        added=0,
+        skipped=0,
+    )
+
+
 @app.get("/api/progress")
 def read_progress():
     state = progress_manager.get_state()
@@ -160,7 +203,7 @@ def read_progress():
         "articles_skipped": state.articles_skipped,
         "analyze_done": state.analyze_done,
         "analyze_total": state.analyze_total,
-        "logs": state.logs[-20:],  # last 20 logs
+        "logs": state.logs[-20:],
         "started_at": state.started_at,
         "finished_at": state.finished_at,
     }
@@ -173,20 +216,21 @@ async def progress_stream():
         try:
             while True:
                 state: ScrapeProgressState = await asyncio.wait_for(queue.get(), timeout=60.0)
-                yield f"data: {json.dumps({
-                    'status': state.status,
-                    'current_source': state.current_source,
-                    'sources_total': state.sources_total,
-                    'sources_done': state.sources_done,
-                    'articles_found': state.articles_found,
-                    'articles_added': state.articles_added,
-                    'articles_skipped': state.articles_skipped,
-                    'analyze_done': state.analyze_done,
-                    'analyze_total': state.analyze_total,
-                    'logs': state.logs[-10:],
-                    'started_at': state.started_at,
-                    'finished_at': state.finished_at,
-                })}\n\n"
+                payload = json.dumps({
+                    "status": state.status,
+                    "current_source": state.current_source,
+                    "sources_total": state.sources_total,
+                    "sources_done": state.sources_done,
+                    "articles_found": state.articles_found,
+                    "articles_added": state.articles_added,
+                    "articles_skipped": state.articles_skipped,
+                    "analyze_done": state.analyze_done,
+                    "analyze_total": state.analyze_total,
+                    "logs": state.logs[-10:],
+                    "started_at": state.started_at,
+                    "finished_at": state.finished_at,
+                })
+                yield f"data: {payload}\n\n"
         except asyncio.TimeoutError:
             yield "data: {\"status\": \"timeout\"}\n\n"
         finally:
@@ -199,6 +243,7 @@ async def progress_stream():
 def read_stats():
     return {
         "total_articles": get_article_count(),
+        "total_videos": get_video_count(),
         "last_refresh": datetime.utcnow().isoformat(),
         "refresh_interval_minutes": REFRESH_INTERVAL_MINUTES,
     }

@@ -1,6 +1,6 @@
 'use client';
 
-import { RefreshCw, Moon, Sun, Sparkles, Newspaper } from 'lucide-react';
+import { RefreshCw, Moon, Sun, Sparkles, Newspaper, Clapperboard } from 'lucide-react';
 import { useTheme } from '@/lib/theme';
 
 interface HeaderProps {
@@ -11,6 +11,8 @@ interface HeaderProps {
   totalArticles: number;
   sortBy: 'published' | 'relevance';
   onSortChange: (sort: 'published' | 'relevance') => void;
+  activeTab: 'articles' | 'videos';
+  onTabChange: (tab: 'articles' | 'videos') => void;
 }
 
 export default function Header({
@@ -21,6 +23,8 @@ export default function Header({
   totalArticles,
   sortBy,
   onSortChange,
+  activeTab,
+  onTabChange,
 }: HeaderProps) {
   const { theme, toggleTheme } = useTheme();
 
@@ -78,7 +82,7 @@ export default function Header({
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-        {/* Sort toggle */}
+        {/* Tab toggle: Articles | Videos */}
         <div
           style={{
             display: 'flex',
@@ -92,65 +96,126 @@ export default function Header({
           }}
         >
           <button
-            onClick={() => onSortChange('published')}
+            onClick={() => onTabChange('articles')}
             style={{
               padding: '5px 12px',
               borderRadius: '6px',
               border: 'none',
-              backgroundColor: sortBy === 'published' ? 'var(--bg-secondary)' : 'transparent',
-              color: sortBy === 'published' ? 'var(--text-primary)' : 'var(--text-tertiary)',
+              backgroundColor: activeTab === 'articles' ? 'var(--bg-secondary)' : 'transparent',
+              color: activeTab === 'articles' ? 'var(--text-primary)' : 'var(--text-tertiary)',
               cursor: 'pointer',
               fontFamily: 'inherit',
               fontSize: 'inherit',
               fontWeight: 'inherit',
-              boxShadow: sortBy === 'published' ? 'var(--shadow-sm)' : 'none',
+              boxShadow: activeTab === 'articles' ? 'var(--shadow-sm)' : 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
             }}
           >
-            Latest
+            <Newspaper size={12} />
+            Articles
           </button>
           <button
-            onClick={() => onSortChange('relevance')}
+            onClick={() => onTabChange('videos')}
             style={{
               padding: '5px 12px',
               borderRadius: '6px',
               border: 'none',
-              backgroundColor: sortBy === 'relevance' ? 'var(--bg-secondary)' : 'transparent',
-              color: sortBy === 'relevance' ? 'var(--text-primary)' : 'var(--text-tertiary)',
+              backgroundColor: activeTab === 'videos' ? 'var(--bg-secondary)' : 'transparent',
+              color: activeTab === 'videos' ? 'var(--text-primary)' : 'var(--text-tertiary)',
               cursor: 'pointer',
               fontFamily: 'inherit',
               fontSize: 'inherit',
               fontWeight: 'inherit',
-              boxShadow: sortBy === 'relevance' ? 'var(--shadow-sm)' : 'none',
+              boxShadow: activeTab === 'videos' ? 'var(--shadow-sm)' : 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
             }}
           >
-            Relevance
+            <Clapperboard size={12} />
+            Videos
           </button>
         </div>
 
-        {/* Analyze button */}
-        <button
-          onClick={onAnalyze}
-          disabled={isAnalyzing}
-          title="Analyze articles with DeepSeek AI"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '8px 14px',
-            borderRadius: '8px',
-            border: '1px solid var(--border)',
-            backgroundColor: 'var(--bg-secondary)',
-            color: isAnalyzing ? 'var(--text-muted)' : 'var(--text-primary)',
-            fontSize: '13px',
-            fontWeight: 500,
-            cursor: isAnalyzing ? 'not-allowed' : 'pointer',
-            transition: 'all 0.2s',
-            fontFamily: 'inherit',
-          }}
-        >
-          <Sparkles size={14} style={{ opacity: isAnalyzing ? 0.5 : 1 }} />
-          {isAnalyzing ? 'Analyzing...' : 'AI Rank'}
-        </button>
+        {activeTab === 'articles' && (
+          <>
+            {/* Sort toggle */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                backgroundColor: 'var(--bg-tertiary)',
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                padding: '3px',
+                fontSize: '12px',
+                fontWeight: 600,
+              }}
+            >
+              <button
+                onClick={() => onSortChange('published')}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  backgroundColor: sortBy === 'published' ? 'var(--bg-secondary)' : 'transparent',
+                  color: sortBy === 'published' ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: 'inherit',
+                  fontWeight: 'inherit',
+                  boxShadow: sortBy === 'published' ? 'var(--shadow-sm)' : 'none',
+                }}
+              >
+                Latest
+              </button>
+              <button
+                onClick={() => onSortChange('relevance')}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  backgroundColor: sortBy === 'relevance' ? 'var(--bg-secondary)' : 'transparent',
+                  color: sortBy === 'relevance' ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: 'inherit',
+                  fontWeight: 'inherit',
+                  boxShadow: sortBy === 'relevance' ? 'var(--shadow-sm)' : 'none',
+                }}
+              >
+                Relevance
+              </button>
+            </div>
+
+            {/* Analyze button */}
+            <button
+              onClick={onAnalyze}
+              disabled={isAnalyzing}
+              title="Analyze articles with DeepSeek AI"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 14px',
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                backgroundColor: 'var(--bg-secondary)',
+                color: isAnalyzing ? 'var(--text-muted)' : 'var(--text-primary)',
+                fontSize: '13px',
+                fontWeight: 500,
+                cursor: isAnalyzing ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s',
+                fontFamily: 'inherit',
+              }}
+            >
+              <Sparkles size={14} style={{ opacity: isAnalyzing ? 0.5 : 1 }} />
+              {isAnalyzing ? 'Analyzing...' : 'AI Rank'}
+            </button>
+          </>
+        )}
 
         {/* Refresh button */}
         <button
