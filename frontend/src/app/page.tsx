@@ -4,9 +4,11 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Header from '@/components/Header';
 import Sidebar from '@/components/Sidebar';
 import NewsGrid from '@/components/NewsGrid';
-import { fetchNews, fetchSources, refreshNews, analyzeNews, Article, SourceInfo } from '@/lib/api';
+import RefreshModal from '@/components/RefreshModal';
+import AdColumn from '@/components/AdColumn';
+import { fetchNews, fetchSources, refreshNews, analyzeNews, createProgressStream, Article, SourceInfo, ProgressState } from '@/lib/api';
 
-const REFRESH_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+const REFRESH_INTERVAL_MS = 15 * 60 * 1000;
 
 export default function Home() {
   const [articles, setArticles] = useState<Article[]>([]);
@@ -17,6 +19,9 @@ export default function Home() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [totalArticles, setTotalArticles] = useState(0);
   const [sortBy, setSortBy] = useState<'published' | 'relevance'>('published');
+  const [progress, setProgress] = useState<ProgressState | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const eventSourceRef = useRef<EventSource | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadData = useCallback(async () => {
@@ -35,32 +40,54 @@ export default function Home() {
     }
   }, [selectedSource, sortBy]);
 
+  const startProgressStream = useCallback(() => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+    setShowModal(true);
+    eventSourceRef.current = createProgressStream(
+      (state) => {
+        setProgress(state);
+        if (state.status === 'done') {
+          // Give user a moment to see "done" before auto-closing
+          setTimeout(() => {
+            loadData();
+            setShowModal(false);
+          }, 2000);
+        }
+      },
+      () => {
+        // on error, fall back to polling
+        console.log('SSE error, falling back to polling');
+      }
+    );
+  }, [loadData]);
+
   const handleRefresh = useCallback(async () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
     try {
       await refreshNews();
-      await loadData();
+      startProgressStream();
     } catch (err) {
       console.error('Error refreshing:', err);
     } finally {
       setIsRefreshing(false);
     }
-  }, [isRefreshing, loadData]);
+  }, [isRefreshing, startProgressStream]);
 
   const handleAnalyze = useCallback(async () => {
     if (isAnalyzing) return;
     setIsAnalyzing(true);
     try {
-      const result = await analyzeNews();
-      console.log('Analyze result:', result);
-      await loadData();
+      await analyzeNews();
+      startProgressStream();
     } catch (err) {
       console.error('Error analyzing:', err);
     } finally {
       setIsAnalyzing(false);
     }
-  }, [isAnalyzing, loadData]);
+  }, [isAnalyzing, startProgressStream]);
 
   useEffect(() => {
     loadData();
@@ -75,6 +102,7 @@ export default function Home() {
     }, REFRESH_INTERVAL_MS);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      if (eventSourceRef.current) eventSourceRef.current.close();
     };
   }, [handleRefresh]);
 
@@ -115,11 +143,26 @@ export default function Home() {
             flex: 1,
             overflowY: 'auto',
             backgroundColor: 'var(--bg-primary)',
+            minWidth: 0,
           }}
         >
           <NewsGrid articles={articles} isLoading={isLoading} />
         </main>
+        <AdColumn />
       </div>
+
+      {showModal && (
+        <RefreshModal
+          progress={progress}
+          onClose={() => {
+            setShowModal(false);
+            if (eventSourceRef.current) {
+              eventSourceRef.current.close();
+              eventSourceRef.current = null;
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

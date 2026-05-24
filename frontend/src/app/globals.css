@@ -78,3 +78,17 @@ a {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-tertiary);
 }
+
+/* Hide ad column on smaller screens */
+@media (max-width: 1279px) {
+  aside[data-ad-column] {
+    display: none !important;
+  }
+}
+
+/* Responsive sidebar */
+@media (max-width: 767px) {
+  aside[data-sidebar] {
+    display: none !important;
+  }
+}

@@ -1,39 +1,39 @@
 # AI News Aggregator
 
-A full-stack AI news aggregator that collects articles from top AI research labs, companies, and tech journalism sources. Features a dark/light theme, DeepSeek AI-powered relevance ranking, topic emojis, a monospace code-like font, and a clean card-based UI.
+A full-stack AI news aggregator that collects articles from top AI research labs, companies, and tech journalism sources. Features a dark/light theme, DeepSeek AI-powered relevance ranking, real-time progress streaming during scrapes, Google AdSense integration, and a clean card-based UI.
 
 ## Features
 
-- **Dark & Light Themes** — toggle instantly with a sun/moon button; preference is saved in localStorage
+- **Dark & Light Themes** — toggle instantly; preference saved in localStorage
 - **JetBrains Mono font** — code-like monospace typography for readability
-- **DeepSeek AI Ranking** — click "AI Rank" to analyze articles with DeepSeek and surface the most relevant news
-- **Topic Emojis** — DeepSeek suggests a visual emoji for each article based on its content
+- **Real-time Progress Streaming** — live backend log console with progress bar during refresh & AI analysis
+- **DeepSeek AI Ranking** — click "AI Rank" to analyze articles and surface the most relevant news
+- **Topic Emojis** — DeepSeek suggests a visual emoji for each article
 - **Relevance Scores** — articles scored 0-100; high-relevance articles get a 🔥 badge
 - **13+ sources** — OpenAI, Google AI, Anthropic, Meta AI, Microsoft Research, Hugging Face, NVIDIA, DeepMind, arXiv, MIT Tech Review, TechCrunch, The Verge, Wired
 - **Auto-refresh** — backend scrapes every 15 minutes; frontend refreshes when tab is visible
-- **Manual refresh** — "Refresh" button with animated spinner
-- **Source filtering** — left sidebar with color-coded dots and article counts
-- **Deduplication** — articles stored by unique URL; duplicates skipped
-- **Direct links** — every card links to the original source
+- **Google AdSense** — dedicated 300px ad column on the right (replace placeholder with your ID)
+- **Responsive** — sidebar and ad column hide on smaller screens
 
 ## Tech Stack
 
-- **Frontend:** Next.js 14 (App Router), React 18, TypeScript, Lucide React icons
-- **Backend:** Python 3.11, FastAPI, Uvicorn
+- **Frontend:** Next.js 14 (App Router), React 18, TypeScript, Lucide React
+- **Backend:** Python 3.11, FastAPI, Uvicorn, Server-Sent Events (SSE)
 - **AI Analysis:** DeepSeek API (`deepseek-chat` model)
 - **Database:** SQLite
 - **Scraping:** feedparser
 - **Scheduler:** APScheduler (background)
-- **Deployment:** Docker + Docker Compose
+- **Deployment:** Docker + Docker Compose, Render, Fly.io
 
 ## Project Structure
 
 ```
 .
 ├── backend/
-│   ├── main.py              # FastAPI app + scheduler
-│   ├── scraper.py           # RSS scraping logic
+│   ├── main.py              # FastAPI app + SSE progress streaming
+│   ├── scraper.py           # RSS scraping with progress reporting
 │   ├── deepseek.py          # DeepSeek AI analysis
+│   ├── progress.py          # Real-time progress state manager
 │   ├── database.py          # SQLite operations
 │   ├── models.py            # Pydantic schemas
 │   ├── requirements.txt
@@ -41,72 +41,120 @@ A full-stack AI news aggregator that collects articles from top AI research labs
 ├── frontend/
 │   ├── src/
 │   │   ├── app/
-│   │   │   ├── layout.tsx
-│   │   │   ├── page.tsx
+│   │   │   ├── layout.tsx   # AdSense script injection
+│   │   │   ├── page.tsx     # 3-column layout
 │   │   │   └── globals.css
 │   │   ├── components/
 │   │   │   ├── Header.tsx
 │   │   │   ├── Sidebar.tsx
 │   │   │   ├── NewsGrid.tsx
-│   │   │   └── NewsCard.tsx
+│   │   │   ├── NewsCard.tsx
+│   │   │   ├── RefreshModal.tsx   # Live progress overlay
+│   │   │   └── AdColumn.tsx       # Google AdSense column
 │   │   └── lib/
-│   │       ├── api.ts       # API client
-│   │       └── theme.tsx    # Theme context
+│   │       ├── api.ts       # API client + SSE handler
+│   │       └── theme.tsx
 │   ├── package.json
 │   ├── next.config.js
 │   ├── tsconfig.json
 │   └── Dockerfile
 ├── docker-compose.yml
+├── render.yaml              # Render.com Blueprint
+├── fly.toml                 # Fly.io config
 └── README.md
 ```
 
-## Quick Start
+## Local Development
 
-### Prerequisites
-
-- Docker & Docker Compose
-
-### Run with Docker Compose
+### With Docker (Recommended)
 
 ```bash
 docker compose up --build
 ```
 
-Then open [http://localhost:3000](http://localhost:3000) for the UI and [http://localhost:8000/docs](http://localhost:8000/docs) for the API docs.
+- UI: http://localhost:3000
+- API Docs: http://localhost:8000/docs
 
-The backend will perform an initial scrape on startup and then continue every 15 minutes.
+### Without Docker
 
-### Run Locally (Development)
-
-#### Backend
-
+**Backend:**
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+source venv/bin/activate
 pip install -r requirements.txt
 python -c "from database import init_db; init_db()"
 uvicorn main:app --reload --port 8000
 ```
 
-#### Frontend
-
+**Frontend:**
 ```bash
 cd frontend
 npm install
 API_PROXY_URL=http://localhost:8000 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+## Deploy to Production
+
+### Option 1: Render.com (Easiest)
+
+1. Push code to GitHub
+2. Go to https://dashboard.render.com/blueprints
+3. Click **"New Blueprint Instance"**
+4. Connect your GitHub repo
+5. Render reads `render.yaml` and creates both services automatically
+6. Add environment variables in the Render dashboard:
+   - `DEEPSEEK_API_KEY` = your DeepSeek API key
+   - `CORS_ORIGINS` = your frontend URL
+
+### Option 2: Fly.io
+
+```bash
+# Install flyctl: https://fly.io/docs/hands-on/install-flyctl/
+
+# Launch backend
+fly launch --config fly.toml
+
+# Create persistent volume for SQLite
+fly volumes create news_data --size 1 --region iad
+
+# Set secrets
+fly secrets set DEEPSEEK_API_KEY=your_key_here
+
+# Deploy
+fly deploy
+```
+
+### Option 3: VPS / Any Docker Host
+
+```bash
+git clone https://github.com/abhver-lgtm/One-AI-News.git
+cd One-AI-News
+docker compose -f docker-compose.yml up -d
+```
+
+## Set Up Google AdSense
+
+1. Sign up at https://www.google.com/adsense/start/
+2. Get your **Publisher ID** (looks like `ca-pub-1234567890123456`)
+3. In `frontend/src/app/layout.tsx`, replace:
+   ```
+   ca-pub-XXXXXXXXXXXXXXXX
+   ```
+   with your actual Publisher ID.
+4. In `frontend/src/components/AdColumn.tsx`, replace the `data-ad-client` and `data-ad-slot` values with your actual ad unit IDs.
+5. Deploy and submit your site to Google for approval.
 
 ## API Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/news?sort_by=published\|relevance` | List articles (filter by `?source=`, sort by published or relevance) |
-| GET | `/api/sources` | List active sources with article counts |
-| POST | `/api/refresh` | Trigger manual scrape |
-| POST | `/api/analyze` | Run DeepSeek AI analysis on unanalyzed articles |
+| GET | `/api/news?sort_by=published\|relevance` | List articles |
+| GET | `/api/sources` | List active sources |
+| POST | `/api/refresh` | Trigger manual scrape (background) |
+| POST | `/api/analyze` | Trigger DeepSeek analysis (background) |
+| GET | `/api/progress` | Current progress state |
+| GET | `/api/progress/stream` | **SSE** live progress stream |
 | GET | `/api/stats` | Aggregated stats |
 | GET | `/health` | Health check |
 
@@ -116,20 +164,21 @@ Open [http://localhost:3000](http://localhost:3000).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DATABASE_PATH` | `./data/news.db` | SQLite database file path |
+| `DATABASE_PATH` | `./data/news.db` | SQLite file path |
 | `REFRESH_INTERVAL_MINUTES` | `15` | Scraping interval |
-| `DEEPSEEK_API_KEY` | *(provided in docker-compose)* | DeepSeek API key for relevance scoring |
+| `DEEPSEEK_API_KEY` | — | DeepSeek API key |
+| `CORS_ORIGINS` | `*` | Comma-separated allowed origins |
 
 ### Frontend
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `API_PROXY_URL` | `http://localhost:8000` | Backend URL for API proxy |
-| `NEXT_PUBLIC_API_URL` | `` (empty) | Public API base URL (unused in Docker setup) |
 
 ## Notes
 
-- **RSS feeds** are fetched directly with a 2-second delay between sources to respect rate limits.
-- **X/Twitter scraping** is not included because public Nitter instances are unreliable and X requires authentication.
-- **DeepSeek analysis** is triggered manually via the "AI Rank" button or can be automated by extending the scheduler in `main.py`. Only the 20 most recent unanalyzed articles are processed per run to control API costs.
-- Articles are **never rewritten or summarized** — headlines and descriptions are stored exactly as published. DeepSeek only assigns a relevance score and topic emoji.
+- **RSS feeds** are fetched directly with a 2-second delay between sources.
+- **X/Twitter scraping** is not included due to authentication requirements.
+- **DeepSeek analysis** processes max 20 unanalyzed articles per run to control API costs.
+- Articles are **never rewritten** — only scored and emoji-tagged by AI.
+- The progress stream uses **Server-Sent Events (SSE)** for real-time backend log visibility.

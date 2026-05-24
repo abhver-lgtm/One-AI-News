@@ -4,9 +4,10 @@ import html
 import time
 import logging
 from datetime import datetime, timezone
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from dateutil import parser as date_parser
 from database import SOURCES, insert_article
+from progress import ScrapeProgressManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -83,16 +84,26 @@ def fetch_rss(rss_url: str, delay: float = 2.0) -> List[dict]:
         return []
 
 
-def scrape_all() -> Tuple[int, int]:
+async def scrape_all(progress: Optional[ScrapeProgressManager] = None) -> Tuple[int, int]:
     """Scrape all configured sources. Returns (added, skipped)."""
     added = 0
     skipped = 0
+    sources_with_rss = [s for s in SOURCES if s.get("rss")]
 
-    for source in SOURCES:
-        rss_url = source.get("rss")
-        if not rss_url:
-            continue
+    if progress:
+        await progress.start(len(sources_with_rss))
+        await progress.log("🚀 Starting RSS scrape across all sources...")
+
+    for source in sources_with_rss:
+        rss_url = source["rss"]
+        if progress:
+            await progress.set_source(source["name"])
+            await progress.log(f"📡 Fetching {source['name']}...")
+
         entries = fetch_rss(rss_url, delay=2.0)
+        source_added = 0
+        source_skipped = 0
+
         for entry in entries:
             article_id = insert_article(
                 title=entry["title"],
@@ -104,8 +115,20 @@ def scrape_all() -> Tuple[int, int]:
             )
             if article_id is not None:
                 added += 1
+                source_added += 1
             else:
                 skipped += 1
+                source_skipped += 1
+
+        if progress:
+            await progress.source_done(len(entries), source_added, source_skipped)
+            await progress.log(
+                f"✅ {source['name']}: {source_added} new, {source_skipped} dupes (of {len(entries)} fetched)"
+            )
+
+    if progress:
+        await progress.log(f"🏁 Scrape complete! Total: {added} added, {skipped} skipped")
+        await progress.finish()
 
     logger.info(f"Scrape complete: {added} added, {skipped} skipped")
     return added, skipped

@@ -14,6 +14,7 @@ export default function Sidebar({ sources, selectedSource, onSelectSource }: Sid
 
   return (
     <aside
+      data-sidebar
       style={{
         width: '280px',
         backgroundColor: 'var(--bg-secondary)',
