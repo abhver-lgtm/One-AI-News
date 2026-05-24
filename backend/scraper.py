@@ -1,7 +1,7 @@
 import feedparser
 import re
 import html
-import time
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import List, Tuple, Optional
@@ -57,12 +57,11 @@ def parse_date(entry) -> datetime:
     return dt
 
 
-def fetch_rss(rss_url: str, delay: float = 2.0) -> List[dict]:
-    """Fetch and parse an RSS feed with rate limiting."""
+def fetch_rss(rss_url: str) -> List[dict]:
+    """Fetch and parse an RSS feed."""
     try:
         logger.info(f"Fetching RSS: {rss_url}")
         feed = feedparser.parse(rss_url)
-        time.sleep(delay)
         entries = []
         for entry in feed.entries[:20]:  # limit entries per source
             title = strip_html(entry.get("title", "Untitled"))
@@ -100,7 +99,7 @@ async def scrape_all(progress: Optional[ScrapeProgressManager] = None) -> Tuple[
             await progress.set_source(source["name"])
             await progress.log(f"📡 Fetching {source['name']}...")
 
-        entries = fetch_rss(rss_url, delay=2.0)
+        entries = fetch_rss(rss_url)
         source_added = 0
         source_skipped = 0
 
@@ -126,6 +125,9 @@ async def scrape_all(progress: Optional[ScrapeProgressManager] = None) -> Tuple[
                 f"✅ {source['name']}: {source_added} new, {source_skipped} dupes (of {len(entries)} fetched)"
             )
 
+        # Non-blocking delay between sources
+        await asyncio.sleep(2.0)
+
     if progress:
         await progress.log(f"🏁 Scrape complete! Total: {added} added, {skipped} skipped")
         await progress.finish()
@@ -135,4 +137,4 @@ async def scrape_all(progress: Optional[ScrapeProgressManager] = None) -> Tuple[
 
 
 if __name__ == "__main__":
-    scrape_all()
+    asyncio.run(scrape_all())

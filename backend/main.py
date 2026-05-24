@@ -14,7 +14,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from database import init_db, get_articles, get_sources, get_article_count, get_unanalyzed_articles, update_article_metadata, get_videos, get_video_channels, get_video_count
 from scraper import scrape_all
 from youtube_scraper import scrape_youtube
-from deepseek import analyze_articles_sync
+from deepseek import analyze_articles_sync, test_deepseek
 from progress import progress_manager, ScrapeProgressState
 from models import Article, SourceInfo, RefreshResponse, AnalyzeResponse, Video
 
@@ -247,6 +247,12 @@ def read_stats():
         "last_refresh": datetime.utcnow().isoformat(),
         "refresh_interval_minutes": REFRESH_INTERVAL_MINUTES,
     }
+
+
+@app.get("/api/analyze/test")
+def analyze_test():
+    """Test DeepSeek API connectivity and response parsing."""
+    return test_deepseek()
 
 
 @app.get("/health")

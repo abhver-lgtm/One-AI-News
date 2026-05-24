@@ -1,7 +1,7 @@
 import feedparser
 import re
 import html
-import time
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import List, Tuple, Optional
@@ -69,12 +69,11 @@ def parse_date(entry) -> datetime:
     return dt
 
 
-def fetch_channel_rss(channel_id: str, delay: float = 1.0) -> List[dict]:
+def fetch_channel_rss(channel_id: str) -> List[dict]:
     rss_url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
     try:
         logger.info(f"Fetching YouTube RSS: {channel_id}")
         feed = feedparser.parse(rss_url)
-        time.sleep(delay)
         entries = []
         for entry in feed.entries[:10]:  # limit to 10 latest videos per channel
             title = strip_html(entry.get("title", "Untitled"))
@@ -114,7 +113,7 @@ async def scrape_youtube(progress: Optional[ScrapeProgressManager] = None) -> Tu
             await progress.set_source(channel["name"])
             await progress.log(f"📡 Fetching {channel['name']}...")
 
-        entries = fetch_channel_rss(channel_id, delay=1.5)
+        entries = fetch_channel_rss(channel_id)
         source_added = 0
         source_skipped = 0
 
@@ -140,6 +139,8 @@ async def scrape_youtube(progress: Optional[ScrapeProgressManager] = None) -> Tu
             await progress.log(
                 f"✅ {channel['name']}: {source_added} new, {source_skipped} dupes (of {len(entries)} fetched)"
             )
+
+        await asyncio.sleep(1.5)
 
     if progress:
         await progress.log(f"🏁 YouTube scrape complete! Total: {added} added, {skipped} skipped")
