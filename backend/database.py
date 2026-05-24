@@ -221,10 +221,10 @@ def insert_video(title: str, description: str, url: str, thumbnail_url: str, cha
         try:
             cursor = conn.execute(
                 """
-                INSERT INTO videos (title, description, url, thumbnail_url, channel_id, channel_name, published_at)
+                INSERT INTO videos (title, description, url, thumbnail_url, channel_id, channel_name, published_at, is_short)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (title, description, url, thumbnail_url, channel_id, channel_name, published_at.isoformat())
+                (title, description, url, thumbnail_url, channel_id, channel_name, published_at.isoformat(), 1 if is_short else 0)
             )
             conn.commit()
             return cursor.lastrowid
