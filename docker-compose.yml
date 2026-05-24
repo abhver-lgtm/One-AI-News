@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  backend:
+    build: ./backend
+    container_name: ai-news-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_PATH=/app/data/news.db
+      - REFRESH_INTERVAL_MINUTES=15
+      - DEEPSEEK_API_KEY=sk-3a895b6948a94029bf21755bdf5cdbc1
+    volumes:
+      - news-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        - API_PROXY_URL=http://backend:8000
+    container_name: ai-news-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - API_PROXY_URL=http://backend:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  news-data:
